@@ -25,10 +25,13 @@
 - 文档自动解析和向量化
 - 文档分片存储和索引
 
-✅ **智能问答 (RAG)**
+✅ **智能对话 (RAG)**
 - 基于文档内容的智能问答
+- 流式响应，实时显示回答过程
+- 对话历史管理（创建、重命名、删除）
+- 上下文感知的多轮对话
 - 语义相似度搜索
-- 上下文感知回答
+- 消息复制功能
 
 ✅ **多租户架构**
 - 租户隔离
@@ -72,7 +75,7 @@ knowledge-management/
 
 ### 前置条件
 
-- Java 21+
+- Java 17+
 - Node.js 20+
 - PostgreSQL 16+ (带 pgvector 扩展)
 - Ollama (本地运行)
@@ -167,15 +170,58 @@ GET /api/documents/search?q=关键词
 DELETE /api/documents/{id}
 ```
 
-### 知识问答
+### 对话管理
 
 ```bash
-# RAG 问答
-POST /api/knowledge/query
+# 创建新对话
+POST /api/conversations
 {
+  "title": "新对话"
+}
+
+# 获取对话列表
+GET /api/conversations?page=0&size=50&sort=updatedAt,desc
+
+# 获取对话详情（包含消息历史）
+GET /api/conversations/{id}
+
+# 更新对话标题
+PUT /api/conversations/{id}/title
+{
+  "title": "更新后的标题"
+}
+
+# 删除对话
+DELETE /api/conversations/{id}
+```
+
+### 智能问答
+
+```bash
+# 流式对话（推荐）
+POST /api/conversations/chat/stream
+Content-Type: application/json
+{
+  "conversationId": 1,
   "question": "什么是多模态模型？",
   "topK": 5,
-  "threshold": 0.7
+  "threshold": 0.5
+}
+
+# 响应格式（NDJSON）：
+{"type":"start","conversationId":1,"messageId":10}
+{"type":"content","content":"多"}
+{"type":"content","content":"模态"}
+{"type":"content","content":"模型"}
+...
+{"type":"done","messageId":11}
+
+# 非流式对话
+POST /api/conversations/chat
+{
+  "conversationId": 1,
+  "question": "什么是RAG？",
+  "topK": 5
 }
 
 # 语义搜索
@@ -238,6 +284,9 @@ server: {
 - `departments` - 部门
 - `documents` - 文档元数据
 - `document_chunks` - 文档分片及向量
+- `conversations` - 对话会话
+- `messages` - 对话消息（用户提问和AI回答）
+- `vector_store` - 向量存储（PGVector）
 
 ## 开发指南
 
@@ -271,6 +320,8 @@ public ResponseEntity<Document> uploadDocument(...) {
 3. **缓存**：对频繁查询的结果启用缓存
 4. **异步处理**：大文件上传使用异步处理
 5. **连接池**：配置合适的数据库连接池大小
+6. **流式响应**：使用 NDJSON 格式的流式传输提升用户体验
+7. **上下文窗口**：限制对话历史为最近10条消息，避免token超限
 
 ## 安全建议
 
@@ -302,15 +353,30 @@ CREATE EXTENSION vector;
 ### 前端代理错误
 检查 `vite.config.ts` 中的代理配置是否正确
 
-## 路线图
+## 功能特性
 
+### 已实现 ✅
+- [x] 流式对话响应（NDJSON格式）
+- [x] 对话历史管理（创建、重命名、删除）
+- [x] 多轮对话上下文理解
+- [x] 消息复制功能
+- [x] 加载动画效果
+- [x] 对话列表侧边栏滚动
+- [x] 文档上传与解析
+- [x] 向量化存储与检索
+- [x] JWT认证授权
+
+### 路线图 📋
+- [ ] 多租户架构
+- [ ] 文档分组管理
 - [ ] 知识图谱可视化
-- [ ] 文档版本管理
-- [ ] 协作编辑功能
 - [ ] 移动端支持
 - [ ] 多语言支持
 - [ ] 高级分析面板
-- [ ] WebSocket实时通知
+- [ ] 对话导出功能
+- [ ] 重新回答功能
+- [ ] Markdown渲染支持
+- [ ] 代码高亮显示
 
 ## 贡献指南
 
@@ -331,4 +397,4 @@ MIT License
 
 ---
 
-**注意**：本项目仅用于学习和研究目的。生产环境使用前请进行充分的安全审计和性能测试。
+**注意**：生产环境使用前请进行充分的安全审计和性能测试。
