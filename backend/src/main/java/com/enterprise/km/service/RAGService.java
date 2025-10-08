@@ -26,11 +26,12 @@ public class RAGService {
     private final ChatClient.Builder chatClientBuilder;
 
     private static final String SYSTEM_PROMPT = """
-            You are a helpful AI assistant for an enterprise knowledge management system.
-            Use the following context to answer the user's question.
-            If you don't know the answer based on the context, say so.
+            你是一个企业知识管理系统的AI助手。
+            请根据以下上下文信息来回答用户的问题。
+            如果上下文中没有相关信息，请明确说明你不知道。
+            请用中文回答。
 
-            Context:
+            上下文信息：
             {context}
             """;
 
@@ -38,15 +39,17 @@ public class RAGService {
         String tenantId = TenantContext.getTenantId();
         log.info("Processing RAG query for tenant: {}, question: {}", tenantId, question);
 
-        // Search for relevant documents
+        // Search for relevant documents with lower threshold
         List<Document> similarDocuments = vectorStore.similaritySearch(
             SearchRequest.query(question)
                 .withTopK(topK)
-                .withSimilarityThreshold(0.7)
+                .withSimilarityThreshold(0.5)  // Lower threshold from 0.7 to 0.5
         );
 
+        log.info("Found {} similar documents", similarDocuments.size());
+
         if (similarDocuments.isEmpty()) {
-            return "I couldn't find any relevant information in the knowledge base to answer your question.";
+            return "抱歉，我在知识库中没有找到与您问题相关的信息。";
         }
 
         // Build context from similar documents
