@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Layout, Input, Button, List, Card, Space, message, Spin, Modal, Dropdown } from 'antd'
+import { Layout, Input, Button, Card, Space, message, Spin, Modal, Dropdown } from 'antd'
 import { SendOutlined, PlusOutlined, DeleteOutlined, MoreOutlined, EditOutlined } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import api from '../services/api'
@@ -150,14 +150,41 @@ export default function Chat() {
     })
   }
 
-  const handleRenameConversation = async (conversationId: number, currentTitle: string) => {
-    Modal.prompt({
+  const handleRenameConversation = (conversationId: number, currentTitle: string) => {
+    let newTitle = currentTitle
+    Modal.confirm({
       title: '重命名对话',
-      defaultValue: currentTitle,
-      onOk: async (newTitle: string) => {
+      content: (
+        <Input
+          defaultValue={currentTitle}
+          onChange={(e) => (newTitle = e.target.value)}
+          onPressEnter={async () => {
+            Modal.destroyAll()
+            if (!newTitle.trim()) {
+              message.warning('标题不能为空')
+              return
+            }
+            try {
+              const response = await api.put(`/conversations/${conversationId}/title`, { title: newTitle })
+              if (response.data.code === 200) {
+                message.success('标题已更新')
+                await loadConversations()
+                if (currentConversation?.id === conversationId) {
+                  setCurrentConversation({ ...currentConversation, title: newTitle })
+                }
+              }
+            } catch (error: any) {
+              handleApiError(error)
+            }
+          }}
+        />
+      ),
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
         if (!newTitle.trim()) {
           message.warning('标题不能为空')
-          return
+          return Promise.reject()
         }
         try {
           const response = await api.put(`/conversations/${conversationId}/title`, { title: newTitle })
@@ -170,9 +197,10 @@ export default function Chat() {
           }
         } catch (error: any) {
           handleApiError(error)
+          return Promise.reject()
         }
       },
-    } as any)
+    })
   }
 
   const getConversationMenuItems = (conversation: Conversation): MenuProps['items'] => [
@@ -193,54 +221,73 @@ export default function Chat() {
 
   return (
     <Layout style={{ height: 'calc(100vh - 64px)' }}>
-      <Sider width={280} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
-        <div style={{ padding: '16px' }}>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            block
-            onClick={createNewConversation}
-            style={{ marginBottom: 16 }}
-          >
-            新建对话
-          </Button>
+      <Sider
+        width={280}
+        theme="light"
+        style={{
+          borderRight: '1px solid #f0f0f0',
+          height: '100%',
+          overflow: 'hidden'
+        }}
+      >
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%'
+        }}>
+          <div style={{ padding: '16px', flexShrink: 0 }}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              block
+              onClick={createNewConversation}
+            >
+              新建对话
+            </Button>
+          </div>
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '0 16px 16px 16px',
+            minHeight: 0
+          }}>
           {loadingConversations ? (
             <div style={{ textAlign: 'center', padding: '20px' }}>
               <Spin />
             </div>
           ) : (
-            <List
-              dataSource={conversations}
-              renderItem={(conversation) => (
-                <Card
-                  size="small"
-                  hoverable
-                  style={{
-                    marginBottom: 8,
-                    cursor: 'pointer',
-                    backgroundColor:
-                      currentConversation?.id === conversation.id ? '#e6f7ff' : 'white',
-                  }}
-                  onClick={() => loadConversationMessages(conversation.id)}
-                  extra={
-                    <Dropdown menu={{ items: getConversationMenuItems(conversation) }}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<MoreOutlined />}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </Dropdown>
-                  }
-                >
-                  <div style={{ fontSize: '14px', fontWeight: 500 }}>{conversation.title}</div>
-                  <div style={{ fontSize: '12px', color: '#999', marginTop: 4 }}>
-                    {conversation.messageCount} 条消息
-                  </div>
-                </Card>
-              )}
-            />
+            conversations.map((conversation) => (
+              <Card
+                key={conversation.id}
+                size="small"
+                hoverable
+                style={{
+                  marginBottom: 8,
+                  cursor: 'pointer',
+                  backgroundColor:
+                    currentConversation?.id === conversation.id ? '#e6f7ff' : 'white',
+                }}
+                onClick={() => loadConversationMessages(conversation.id)}
+                extra={
+                  <Dropdown menu={{ items: getConversationMenuItems(conversation) }}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<MoreOutlined />}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </Dropdown>
+                }
+              >
+                <div style={{ fontSize: '14px', fontWeight: 500 }}>{conversation.title}</div>
+                <div style={{ fontSize: '12px', color: '#999', marginTop: 4 }}>
+                  {conversation.messageCount} 条消息
+                </div>
+              </Card>
+            ))
           )}
+          </div>
         </div>
       </Sider>
       <Content style={{ display: 'flex', flexDirection: 'column' }}>
