@@ -142,7 +142,28 @@ public class DocumentService {
             throw new RuntimeException("Access denied");
         }
 
+        // 1. Get chunks size before deletion
+        int chunkSize = chunkRepository.countByDocumentId(documentId);
+
+        // 1. Delete all chunks from database
+        chunkRepository.deleteByDocumentId(documentId);
+
+        // 4. Delete physical file  TODO 后面存储在minio中
+        if (document.getFilePath() != null) {
+            try {
+                Path filePath = Paths.get(document.getFilePath());
+                boolean fileDeleted = Files.deleteIfExists(filePath);
+                log.info("Physical file deleted: {}", fileDeleted);
+            } catch (IOException e) {
+                log.warn("Failed to delete physical file {}: {}", document.getFilePath(), e.getMessage());
+            }
+        }
+
+        // 5. Mark document as deleted (soft delete)
         document.setDeleted(true);
         documentRepository.save(document);
+
+        log.info("Document {} deleted successfully , Chunks: {}, Physical file deleted",
+            documentId, chunkSize);
     }
 }

@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Upload, Button, Table, message, Space, Input } from 'antd'
-import { UploadOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useState, useEffect } from 'react'
+import { Upload, Button, Table, message, Space, Input, Modal } from 'antd'
+import { UploadOutlined, SearchOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
 import api from '../services/api'
 import { handleApiResponse, handleApiError } from '../utils/request'
@@ -9,6 +9,12 @@ import type { PageResponse } from '../types/api'
 export default function Documents() {
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(false)
+  const [searchKeyword, setSearchKeyword] = useState('')
+
+  // 页面加载时自动获取文档列表
+  useEffect(() => {
+    loadDocuments()
+  }, [])
 
   const uploadProps: UploadProps = {
     name: 'file',
@@ -41,15 +47,50 @@ export default function Documents() {
     }
   }
 
+  const handleSearch = async (keyword: string) => {
+    setSearchKeyword(keyword)
+    if (!keyword.trim()) {
+      loadDocuments()
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await api.get(`/documents/search?q=${encodeURIComponent(keyword)}`)
+      const data = handleApiResponse<PageResponse<any>>(response)
+      if (data) {
+        setDocuments(data.content)
+      }
+    } catch (error: any) {
+      handleApiError(error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const confirmDelete = (record: any) => {
+    Modal.confirm({
+      title: '确认删除',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要删除文档 "${record.fileName}" 吗？`,
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: () => handleDelete(record.id),
+    })
+  }
+
   const handleDelete = async (id: number) => {
     try {
       const response = await api.delete(`/documents/${id}`)
-      const data = handleApiResponse(response)
-      if (data !== null) {
+      if (response.data.code === 200) {
         message.success('删除成功')
         loadDocuments()
+      } else {
+        message.error(response.data.message || '删除失败')
       }
     } catch (error: any) {
+      console.error('删除失败:', error)
       handleApiError(error)
     }
   }
@@ -85,7 +126,7 @@ export default function Documents() {
             type="link"
             danger
             icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
+            onClick={() => confirmDelete(record)}
           >
             删除
           </Button>
@@ -106,6 +147,8 @@ export default function Documents() {
         placeholder="搜索文档"
         enterButton={<SearchOutlined />}
         style={{ marginBottom: 16 }}
+        onSearch={handleSearch}
+        allowClear
       />
       <Table
         columns={columns}
