@@ -98,29 +98,168 @@ export default function Chat() {
     const userQuestion = question
     setQuestion('')
 
+    // Add user message to UI immediately
+    const tempUserMessage: Message = {
+      id: Date.now(),
+      role: 'USER',
+      content: userQuestion,
+      createdAt: new Date().toISOString(),
+    }
+
+    // Add temporary assistant message for streaming
+    const tempAssistantMessage: Message = {
+      id: Date.now() + 1,
+      role: 'ASSISTANT',
+      content: '',
+      createdAt: new Date().toISOString(),
+    }
+
+    setMessages([...messages, tempUserMessage, tempAssistantMessage])
+
     try {
-      const response = await api.post('/conversations/chat', {
-        conversationId: currentConversation?.id,
-        question: userQuestion,
-        topK: 5,
-        threshold: 0.5,
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/conversations/chat/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          conversationId: currentConversation?.id,
+          question: userQuestion,
+          topK: 5,
+          threshold: 0.5,
+        }),
       })
 
-      const data = handleApiResponse<any>(response)
-      if (data) {
-        // If new conversation created, update current conversation
-        if (!currentConversation || currentConversation.id !== data.conversationId) {
-          await loadConversations()
-          await loadConversationMessages(data.conversationId)
-        } else {
-          // Reload messages for current conversation
-          await loadConversationMessages(currentConversation.id)
+      if (!response.ok) {
+        throw new Error('Stream request failed')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let streamedConversationId: number | null = null
+      let streamedContent = ''
+      let buffer = '' // Buffer for incomplete lines
+
+      if (reader) {
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) {
+              console.log('Stream done, buffer remaining:', buffer)
+              break
+            }
+
+            const chunk = decoder.decode(value, { stream: true })
+            console.log('Received chunk:', chunk)
+            buffer += chunk
+
+            // NDJSON format: split by newlines
+            const lines = buffer.split('\n')
+
+            // Keep the last potentially incomplete line in buffer
+            buffer = lines.pop() || ''
+
+            for (const line of lines) {
+              const trimmed = line.trim()
+              // Skip empty lines
+              if (!trimmed) {
+                continue
+              }
+
+              // Parse JSON directly (NDJSON format)
+              try {
+                const data = JSON.parse(trimmed)
+                console.log('Parsed data:', data)
+
+                    if (data.type === 'start') {
+                      streamedConversationId = data.conversationId
+                      console.log('Started conversation:', streamedConversationId)
+                    } else if (data.type === 'content') {
+                      streamedContent += data.content
+                      console.log('Content added, total length:', streamedContent.length)
+                      // Update the temporary assistant message
+                      setMessages((prev) => {
+                        const updated = [...prev]
+                        updated[updated.length - 1] = {
+                          ...updated[updated.length - 1],
+                          content: streamedContent,
+                        }
+                        return updated
+                      })
+                    } else if (data.type === 'done') {
+                      console.log('Received done message')
+                      setLoading(false)
+                      // Reload conversations and messages
+                      loadConversations()
+                      if (streamedConversationId) {
+                        if (!currentConversation || currentConversation.id !== streamedConversationId) {
+                          loadConversationMessages(streamedConversationId)
+                        } else {
+                          loadConversationMessages(currentConversation.id)
+                        }
+                      }
+                } else if (data.type === 'error') {
+                  console.error('Received error:', data.message)
+                  message.error(data.message || '发生错误')
+                  setLoading(false)
+                  setQuestion(userQuestion)
+                }
+              } catch (e) {
+                console.error('Error parsing JSON:', e, 'Line:', trimmed)
+              }
+            }
+          }
+
+          // Process any remaining data in buffer
+          const trimmed = buffer.trim()
+          if (trimmed) {
+            try {
+              const data = JSON.parse(trimmed)
+              console.log('Parsed remaining buffer:', data)
+              if (data.type === 'content') {
+                streamedContent += data.content
+                setMessages((prev) => {
+                  const updated = [...prev]
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    content: streamedContent,
+                  }
+                  return updated
+                })
+              } else if (data.type === 'done') {
+                setLoading(false)
+                loadConversations()
+                if (streamedConversationId) {
+                  if (!currentConversation || currentConversation.id !== streamedConversationId) {
+                    loadConversationMessages(streamedConversationId)
+                  } else {
+                    loadConversationMessages(currentConversation.id)
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing remaining buffer:', e, 'Buffer:', trimmed)
+            }
+          }
+        } finally {
+          // Ensure loading is always set to false when stream ends
+          setLoading(false)
+          // Reload conversations and messages
+          if (streamedConversationId) {
+            loadConversations()
+            if (!currentConversation || currentConversation.id !== streamedConversationId) {
+              loadConversationMessages(streamedConversationId)
+            } else {
+              loadConversationMessages(currentConversation.id)
+            }
+          }
         }
       }
     } catch (error: any) {
       handleApiError(error)
-      setQuestion(userQuestion) // Restore question on error
-    } finally {
+      setQuestion(userQuestion)
       setLoading(false)
     }
   }

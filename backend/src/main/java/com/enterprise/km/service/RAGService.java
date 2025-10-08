@@ -13,6 +13,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -137,5 +138,67 @@ public class RAGService {
                 .withTopK(topK)
                 .withSimilarityThreshold(threshold)
         );
+    }
+
+    /**
+     * Stream query with conversation history
+     */
+    public Flux<String> streamQueryWithHistory(String question, int topK, List<com.enterprise.km.model.Message> conversationHistory) {
+        String tenantId = TenantContext.getTenantId();
+        log.info("Processing streaming RAG query for tenant: {}, question: {}", tenantId, question);
+
+        // Search for relevant documents
+        List<Document> similarDocuments = vectorStore.similaritySearch(
+            SearchRequest.query(question)
+                .withTopK(topK)
+                .withSimilarityThreshold(0.5)
+        );
+
+        log.info("Found {} similar documents", similarDocuments.size());
+
+        if (similarDocuments.isEmpty()) {
+            return Flux.just("抱歉，我在知识库中没有找到与您问题相关的信息。");
+        }
+
+        // Build context from similar documents
+        String context = similarDocuments.stream()
+                .map(Document::getContent)
+                .collect(Collectors.joining("\n\n"));
+
+        // Build messages list
+        List<Message> messages = new ArrayList<>();
+
+        // Add system prompt
+        String promptTemplate = (conversationHistory != null && !conversationHistory.isEmpty())
+                ? SYSTEM_PROMPT_WITH_HISTORY
+                : SYSTEM_PROMPT;
+        SystemPromptTemplate systemPromptTemplate = new SystemPromptTemplate(promptTemplate);
+        Message systemMessage = systemPromptTemplate.createMessage(Map.of("context", context));
+        messages.add(systemMessage);
+
+        // Add conversation history (last N messages for context window)
+        if (conversationHistory != null && !conversationHistory.isEmpty()) {
+            int historyLimit = Math.min(conversationHistory.size(), 10);
+            for (int i = Math.max(0, conversationHistory.size() - historyLimit); i < conversationHistory.size(); i++) {
+                com.enterprise.km.model.Message msg = conversationHistory.get(i);
+                if (msg.getRole() == com.enterprise.km.model.Message.MessageRole.USER) {
+                    messages.add(new UserMessage(msg.getContent()));
+                } else if (msg.getRole() == com.enterprise.km.model.Message.MessageRole.ASSISTANT) {
+                    messages.add(new AssistantMessage(msg.getContent()));
+                }
+            }
+        }
+
+        // Add current question
+        messages.add(new UserMessage(question));
+
+        // Create prompt
+        Prompt prompt = new Prompt(messages);
+
+        // Get streaming response from LLM
+        ChatClient chatClient = chatClientBuilder.build();
+        return chatClient.prompt(prompt)
+                .stream()
+                .content();
     }
 }

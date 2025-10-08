@@ -12,8 +12,15 @@ import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
+import reactor.util.context.Context;
 
 import java.util.List;
 
@@ -119,6 +126,92 @@ public class ConversationController {
                 .build();
 
         return ApiResponse.success("查询成功", response);
+    }
+
+    /**
+     * Stream chat with conversation history (SSE)
+     */
+    @PostMapping(value = "/chat/stream", produces = MediaType.APPLICATION_NDJSON_VALUE)
+    @PreAuthorize("hasAuthority('KNOWLEDGE_QUERY')")
+    public Flux<String> chatStream(@Valid @RequestBody ChatRequest request) {
+        // Capture SecurityContext and TenantContext before entering reactive pipeline
+        final Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        final String tenantId = com.enterprise.km.security.TenantContext.getTenantId();
+
+        // Execute setup in blocking context
+        Conversation conversation;
+        List<Message> conversationHistory;
+
+        // Create new conversation or use existing one
+        if (request.getConversationId() == null) {
+            String title = request.getQuestion().length() > 30
+                    ? request.getQuestion().substring(0, 30) + "..."
+                    : request.getQuestion();
+            conversation = conversationService.createConversation(title);
+            conversationHistory = List.of();
+        } else {
+            conversation = conversationService.getConversation(request.getConversationId());
+            conversationHistory = conversationService.getConversationMessages(request.getConversationId());
+        }
+
+        // Save user message
+        Message userMessage = conversationService.addMessage(
+                conversation.getId(),
+                Message.MessageRole.USER,
+                request.getQuestion()
+        );
+
+        final Long conversationId = conversation.getId();
+        final StringBuilder fullAnswer = new StringBuilder();
+
+        // Build the stream - NDJSON format (one JSON per line)
+        return Flux.concat(
+                // Send start message
+                Flux.just("{\"type\":\"start\",\"conversationId\":" + conversationId + ",\"messageId\":" + userMessage.getId() + "}\n"),
+
+                // Stream content and collect
+                ragService.streamQueryWithHistory(
+                        request.getQuestion(),
+                        request.getTopK(),
+                        conversationHistory
+                )
+                .doOnNext(chunk -> fullAnswer.append(chunk))
+                .map(chunk -> "{\"type\":\"content\",\"content\":\"" + escapeJson(chunk) + "\"}\n")
+                .concatWith(
+                    Flux.defer(() -> {
+                        // Restore SecurityContext and TenantContext
+                        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+                        securityContext.setAuthentication(authentication);
+                        SecurityContextHolder.setContext(securityContext);
+                        com.enterprise.km.security.TenantContext.setTenantId(tenantId);
+
+                        try {
+                            // Save assistant message after streaming completes
+                            Message assistantMessage = conversationService.addMessage(
+                                    conversationId,
+                                    Message.MessageRole.ASSISTANT,
+                                    fullAnswer.toString()
+                            );
+                            return Flux.just("{\"type\":\"done\",\"messageId\":" + assistantMessage.getId() + "}\n");
+                        } finally {
+                            // Clear context
+                            SecurityContextHolder.clearContext();
+                            com.enterprise.km.security.TenantContext.clear();
+                        }
+                    })
+                )
+        ).onErrorResume(error ->
+            Flux.just("{\"type\":\"error\",\"message\":\"" + escapeJson(error.getMessage()) + "\"}\n")
+        );
+    }
+
+    private String escapeJson(String str) {
+        if (str == null) return "";
+        return str.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     /**
