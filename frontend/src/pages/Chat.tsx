@@ -480,17 +480,47 @@ export default function Chat() {
                     }}
                   >
                     <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {msg.content}
+                      {msg.content || (
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <style>{`
+                            @keyframes dot-pulse {
+                              0%, 80%, 100% {
+                                transform: scale(0.8);
+                                opacity: 0.5;
+                              }
+                              40% {
+                                transform: scale(1);
+                                opacity: 1;
+                              }
+                            }
+                            .dot {
+                              width: 8px;
+                              height: 8px;
+                              background-color: #333;
+                              border-radius: 50%;
+                              animation: dot-pulse 1.4s infinite ease-in-out;
+                            }
+                            .dot:nth-child(1) { animation-delay: 0s; }
+                            .dot:nth-child(2) { animation-delay: 0.2s; }
+                            .dot:nth-child(3) { animation-delay: 0.4s; }
+                          `}</style>
+                          <div className="dot"></div>
+                          <div className="dot"></div>
+                          <div className="dot"></div>
+                        </div>
+                      )}
                     </div>
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        marginTop: '8px',
-                        opacity: 0.7,
-                      }}
-                    >
-                      {new Date(msg.createdAt).toLocaleTimeString()}
-                    </div>
+                    {msg.content && (
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          marginTop: '8px',
+                          opacity: 0.7,
+                        }}
+                      >
+                        {new Date(msg.createdAt).toLocaleTimeString()}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
