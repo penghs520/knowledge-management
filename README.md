@@ -368,6 +368,7 @@ CREATE EXTENSION vector;
 - [x] JWT认证授权
 
 ### 路线图 📋
+- [ ] 集成MinIO
 - [ ] 多租户架构
 - [ ] 文档分组管理
 - [ ] 知识图谱可视化
