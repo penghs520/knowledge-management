@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -142,13 +143,19 @@ public class DocumentService {
             throw new RuntimeException("Access denied");
         }
 
-        // 1. Get chunks size before deletion
-        int chunkSize = chunkRepository.countByDocumentId(documentId);
+        // 1. Get all chunks before deletion
+        List<DocumentChunk> chunks = chunkRepository.findByDocumentId(documentId);
 
-        // 1. Delete all chunks from database
+        // 2. Delete vectors from vector_store table using vectorId
+        List<String> vectorIds = chunks.stream().map(DocumentChunk::getVectorId).filter(Objects::nonNull)
+                .toList();
+
+        vectorStore.delete(vectorIds);
+
+        // 3. Delete all chunks from database
         chunkRepository.deleteByDocumentId(documentId);
 
-        // 4. Delete physical file  TODO 后面存储在minio中
+        // 4. Delete physical file
         if (document.getFilePath() != null) {
             try {
                 Path filePath = Paths.get(document.getFilePath());
@@ -159,11 +166,10 @@ public class DocumentService {
             }
         }
 
-        // 5. Mark document as deleted (soft delete)
-        document.setDeleted(true);
-        documentRepository.save(document);
+        // 5. delete document
+        documentRepository.deleteById(documentId);
 
-        log.info("Document {} deleted successfully , Chunks: {}, Physical file deleted",
-            documentId, chunkSize);
+        log.info("Document {} deleted successfully - Vectors: {}, Chunks: {}, Physical file deleted",
+            documentId, vectorIds.size(), chunks.size());
     }
 }
