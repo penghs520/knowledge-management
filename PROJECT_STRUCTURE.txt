@@ -1,0 +1,34 @@
+.
+├── PROJECT_STRUCTURE.txt
+├── README.md
+├── backend
+│   ├── Dockerfile
+│   ├── pom.xml
+│   └── src
+│       ├── main
+│       └── test
+├── docker
+│   ├── docker-compose.yml
+│   └── init-db.sql
+├── docs
+│   └── DEPLOYMENT.md
+├── frontend
+│   ├── Dockerfile
+│   ├── index.html
+│   ├── nginx.conf
+│   ├── package.json
+│   ├── public
+│   ├── src
+│   │   ├── App.tsx
+│   │   ├── components
+│   │   ├── index.css
+│   │   ├── main.tsx
+│   │   ├── pages
+│   │   ├── services
+│   │   ├── types
+│   │   └── utils
+│   ├── tsconfig.json
+│   └── vite.config.ts
+└── start-dev.sh
+
+15 directories, 17 files

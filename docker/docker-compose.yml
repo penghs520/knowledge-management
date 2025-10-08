@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with PGVector
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: km-postgres
+    environment:
+      POSTGRES_DB: knowledge_mgmt
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - km-network
+
+  # Ollama for local LLM
+  ollama:
+    image: ollama/ollama:latest
+    container_name: km-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - km-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Spring Boot Backend
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: km-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/knowledge_mgmt
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      - postgres
+      - ollama
+    networks:
+      - km-network
+    volumes:
+      - backend_uploads:/app/uploads
+
+  # React Frontend
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: km-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - km-network
+
+volumes:
+  postgres_data:
+  ollama_data:
+  backend_uploads:
+
+networks:
+  km-network:
+    driver: bridge

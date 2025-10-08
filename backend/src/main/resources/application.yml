@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: knowledge-management
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/knowledge_mgmt
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    defer-datasource-initialization: true
+
+  sql:
+    init:
+      mode: always
+      continue-on-error: true
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: qwen2.5:latest
+          temperature: 0.7
+      embedding:
+        options:
+          model: nomic-embed-text:latest
+
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 768
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.enterprise.km: DEBUG
+    org.springframework.ai: DEBUG
+    org.hibernate.SQL: DEBUG
+
+jwt:
+  secret: your-secret-key-change-this-in-production-min-256-bits-long
+  expiration: 86400000 # 24 hours
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000

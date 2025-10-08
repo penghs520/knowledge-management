@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with PGVector - 开发环境
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: km-postgres-dev
+    environment:
+      POSTGRES_DB: knowledge_mgmt
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - km_postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - km-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis - 缓存（可选）
+  redis:
+    image: redis:7-alpine
+    container_name: km-redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - km-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # MinIO - 对象存储（可选，用于文件存储）
+  minio:
+    image: minio/minio:latest
+    container_name: km-minio-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - km_minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - km-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  km_postgres_data:
+    driver: local
+  km_minio_data:
+    driver: local
+
+networks:
+  km-network:
+    driver: bridge
