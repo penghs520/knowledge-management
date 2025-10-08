@@ -4,6 +4,7 @@ import {
   DashboardOutlined,
   FileTextOutlined,
   SearchOutlined,
+  MessageOutlined,
   LogoutOutlined,
 } from '@ant-design/icons'
 
@@ -23,6 +24,11 @@ export default function Layout() {
       key: '/documents',
       icon: <FileTextOutlined />,
       label: '文档管理',
+    },
+    {
+      key: '/chat',
+      icon: <MessageOutlined />,
+      label: '智能对话',
     },
     {
       key: '/knowledge',
