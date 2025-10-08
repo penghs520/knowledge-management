@@ -307,7 +307,7 @@ export default function Chat() {
                 color: '#999',
               }}
             >
-              <h2>欢迎使用知识问答</h2>
+              <h2>欢迎使用智能对话</h2>
               <p>请选择一个对话或创建新对话开始提问</p>
             </div>
           ) : messages.length === 0 ? (
