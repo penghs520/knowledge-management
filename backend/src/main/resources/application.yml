@@ -7,6 +7,16 @@ spring:
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # 连接池配置
+      maximum-pool-size: 20                # 最大连接数
+      minimum-idle: 5                      # 最小空闲连接数
+      connection-timeout: 30000            # 连接超时时间（毫秒）
+      idle-timeout: 600000                 # 空闲连接超时时间（10分钟）
+      max-lifetime: 1800000                # 连接最大生命周期（30分钟）
+      auto-commit: true                    # 自动提交
+      pool-name: KnowledgeManagementPool   # 连接池名称
+      connection-test-query: SELECT 1      # 测试连接的SQL
 
   jpa:
     hibernate:
@@ -53,6 +63,7 @@ logging:
     com.enterprise.km: DEBUG
     org.springframework.ai: DEBUG
     org.hibernate.SQL: DEBUG
+    com.zaxxer.hikari: DEBUG              # HikariCP连接池日志
 
 jwt:
   secret: your-secret-key-change-this-in-production-min-256-bits-long
