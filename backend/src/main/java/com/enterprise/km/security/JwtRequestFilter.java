@@ -38,21 +38,27 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             tenantId = jwtUtil.extractTenantId(jwt);
         }
 
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+        try {
+            // Set tenant context BEFORE loading user details
+            if (tenantId != null) {
+                TenantContext.setTenantId(tenantId);
+            }
 
-            if (jwtUtil.validateToken(jwt, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
-                // Set tenant context
-                if (tenantId != null) {
-                    TenantContext.setTenantId(tenantId);
+                if (jwtUtil.validateToken(jwt, userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
+
+            chain.doFilter(request, response);
+        } finally {
+            // Clear tenant context after request processing is complete
+            TenantContext.clear();
         }
-        chain.doFilter(request, response);
     }
 }
