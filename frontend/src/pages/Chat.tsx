@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Layout, Input, Button, Card, Space, message, Spin, Modal, Dropdown } from 'antd'
-import { SendOutlined, PlusOutlined, DeleteOutlined, MoreOutlined, EditOutlined } from '@ant-design/icons'
+import { SendOutlined, PlusOutlined, DeleteOutlined, MoreOutlined, EditOutlined, CopyOutlined } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import api from '../services/api'
 import { handleApiResponse, handleApiError } from '../utils/request'
@@ -342,6 +342,14 @@ export default function Chat() {
     })
   }
 
+  const handleCopyMessage = (content: string) => {
+    navigator.clipboard.writeText(content).then(() => {
+      message.success('已复制到剪贴板')
+    }).catch(() => {
+      message.error('复制失败')
+    })
+  }
+
   const getConversationMenuItems = (conversation: Conversation): MenuProps['items'] => [
     {
       key: 'rename',
@@ -513,12 +521,31 @@ export default function Chat() {
                     {msg.content && (
                       <div
                         style={{
-                          fontSize: '12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
                           marginTop: '8px',
+                          fontSize: '12px',
                           opacity: 0.7,
                         }}
                       >
-                        {new Date(msg.createdAt).toLocaleTimeString()}
+                        <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
+                        {msg.role === 'ASSISTANT' && (
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CopyOutlined />}
+                            onClick={() => handleCopyMessage(msg.content)}
+                            style={{
+                              fontSize: '12px',
+                              padding: '0 4px',
+                              height: 'auto',
+                              color: 'inherit'
+                            }}
+                          >
+                            复制
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
