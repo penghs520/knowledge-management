@@ -1,6 +1,7 @@
 package com.enterprise.km.controller;
 
 import com.enterprise.km.dto.ApiResponse;
+import com.enterprise.km.dto.DocumentDTO;
 import com.enterprise.km.model.Document;
 import com.enterprise.km.service.DocumentService;
 import lombok.RequiredArgsConstructor;
@@ -19,29 +20,31 @@ public class DocumentController {
 
     @PostMapping("/upload")
     @PreAuthorize("hasAuthority('DOCUMENT_WRITE')")
-    public ApiResponse<Document> uploadDocument(
+    public ApiResponse<DocumentDTO> uploadDocument(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "departmentId", required = false) Long departmentId) {
 
         Document document = documentService.uploadDocument(file, departmentId);
-        return ApiResponse.success("文档上传成功", document);
+        return ApiResponse.success("文档上传成功", DocumentDTO.from(document));
     }
 
     @GetMapping
     @PreAuthorize("hasAuthority('DOCUMENT_READ')")
-    public ApiResponse<Page<Document>> listDocuments(Pageable pageable) {
+    public ApiResponse<Page<DocumentDTO>> listDocuments(Pageable pageable) {
         Page<Document> documents = documentService.listDocuments(pageable);
-        return ApiResponse.success(documents);
+        Page<DocumentDTO> documentDTOs = documents.map(DocumentDTO::from);
+        return ApiResponse.success(documentDTOs);
     }
 
     @GetMapping("/search")
     @PreAuthorize("hasAuthority('DOCUMENT_READ')")
-    public ApiResponse<Page<Document>> searchDocuments(
+    public ApiResponse<Page<DocumentDTO>> searchDocuments(
             @RequestParam("q") String keyword,
             Pageable pageable) {
 
         Page<Document> documents = documentService.searchDocuments(keyword, pageable);
-        return ApiResponse.success(documents);
+        Page<DocumentDTO> documentDTOs = documents.map(DocumentDTO::from);
+        return ApiResponse.success(documentDTOs);
     }
 
     @DeleteMapping("/{id}")

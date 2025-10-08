@@ -32,5 +32,6 @@ public class DocumentChunk extends BaseEntity {
     private float[] embedding;
 
     @Column(columnDefinition = "jsonb")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String metadata; // Additional metadata as JSON
 }
