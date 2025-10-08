@@ -102,4 +102,28 @@ public class ConversationService {
         String tenantId = TenantContext.getTenantId();
         return conversationRepository.findActiveConversations(username, tenantId);
     }
+
+    @Transactional
+    public void deleteMessages(Long conversationId, List<Long> messageIds) {
+        // Verify user has access to this conversation
+        getConversation(conversationId);
+
+        if (messageIds == null || messageIds.isEmpty()) {
+            throw new RuntimeException("消息ID列表不能为空");
+        }
+
+        // Get all messages for this conversation
+        List<Message> allMessages = messageRepository.findByConversationId(conversationId);
+
+        // Verify all message IDs belong to this conversation and delete them
+        for (Long messageId : messageIds) {
+            Message message = allMessages.stream()
+                    .filter(m -> m.getId().equals(messageId))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("消息不存在或无权访问: " + messageId));
+
+            messageRepository.delete(message);
+            log.info("Deleted message {} from conversation {}", messageId, conversationId);
+        }
+    }
 }

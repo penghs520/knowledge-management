@@ -255,4 +255,16 @@ public class ConversationController {
                 .toList();
         return ApiResponse.success(dtos);
     }
+
+    /**
+     * Delete specific messages by IDs
+     */
+    @DeleteMapping("/{conversationId}/messages")
+    @PreAuthorize("hasAuthority('KNOWLEDGE_QUERY')")
+    public ApiResponse<Void> deleteMessages(
+            @PathVariable Long conversationId,
+            @RequestParam List<Long> messageIds) {
+        conversationService.deleteMessages(conversationId, messageIds);
+        return ApiResponse.success("消息已删除", null);
+    }
 }

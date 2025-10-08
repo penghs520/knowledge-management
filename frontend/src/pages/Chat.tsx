@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Layout, Input, Button, Card, Space, message, Spin, Modal, Dropdown } from 'antd'
-import { SendOutlined, PlusOutlined, DeleteOutlined, MoreOutlined, EditOutlined, CopyOutlined } from '@ant-design/icons'
+import { SendOutlined, PlusOutlined, DeleteOutlined, MoreOutlined, EditOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import api from '../services/api'
 import { handleApiResponse, handleApiError } from '../utils/request'
@@ -88,23 +88,17 @@ export default function Chat() {
     }
   }
 
-  const handleSendMessage = async () => {
-    if (!question.trim()) {
-      message.warning('请输入问题')
-      return
-    }
-
+  const sendStreamingMessage = async (userQuestion: string, existingMessages: Message[]) => {
     setLoading(true)
-    const userQuestion = question
-    setQuestion('')
 
-    // Add user message to UI immediately
-    const tempUserMessage: Message = {
+    // Add user message to UI immediately if not regenerating
+    const needsUserMessage = existingMessages.length === 0 || existingMessages[existingMessages.length - 1].role !== 'USER'
+    const tempUserMessage: Message | null = needsUserMessage ? {
       id: Date.now(),
       role: 'USER',
       content: userQuestion,
       createdAt: new Date().toISOString(),
-    }
+    } : null
 
     // Add temporary assistant message for streaming
     const tempAssistantMessage: Message = {
@@ -114,7 +108,11 @@ export default function Chat() {
       createdAt: new Date().toISOString(),
     }
 
-    setMessages([...messages, tempUserMessage, tempAssistantMessage])
+    const newMessages = tempUserMessage
+      ? [...existingMessages, tempUserMessage, tempAssistantMessage]
+      : [...existingMessages, tempAssistantMessage]
+
+    setMessages(newMessages)
 
     try {
       const token = localStorage.getItem('token')
@@ -261,6 +259,69 @@ export default function Chat() {
       handleApiError(error)
       setQuestion(userQuestion)
       setLoading(false)
+    }
+  }
+
+  const handleSendMessage = async () => {
+    if (!question.trim()) {
+      message.warning('请输入问题')
+      return
+    }
+
+    const userQuestion = question
+    setQuestion('')
+    await sendStreamingMessage(userQuestion, messages)
+  }
+
+  const handleRegenerateResponse = async (messageIndex: number) => {
+    // Only allow regenerating the last assistant message
+    if (messageIndex !== messages.length - 1) {
+      message.warning('只能重新生成最后一条回答')
+      return
+    }
+
+    // Find the user message before this assistant message
+    if (messageIndex === 0 || messages[messageIndex - 1].role !== 'USER') {
+      message.error('无法找到对应的用户消息')
+      return
+    }
+
+    if (!currentConversation) {
+      message.error('请先选择一个对话')
+      return
+    }
+
+    const userMessage = messages[messageIndex - 1]
+    const assistantMessage = messages[messageIndex]
+
+    // Check if these are real messages (not temporary ones)
+    const userMessageId = userMessage.id
+    const assistantMessageId = assistantMessage.id
+    const isRealMessage = (id: number) => !isNaN(id) && id < Date.now() - 1000000
+
+    try {
+      // Delete messages from backend if they are real (not temporary)
+      const messageIdsToDelete: number[] = []
+      if (isRealMessage(userMessageId)) {
+        messageIdsToDelete.push(userMessageId)
+      }
+      if (isRealMessage(assistantMessageId)) {
+        messageIdsToDelete.push(assistantMessageId)
+      }
+
+      if (messageIdsToDelete.length > 0) {
+        await api.delete(`/conversations/${currentConversation.id}/messages`, {
+          params: { messageIds: messageIdsToDelete }
+        })
+      }
+
+      // Remove the user and assistant messages from UI (last 2 messages)
+      const messagesBeforeRegeneration = messages.slice(0, messageIndex - 1)
+
+      // Regenerate the response
+      await sendStreamingMessage(userMessage.content, messagesBeforeRegeneration)
+    } catch (error: any) {
+      handleApiError(error)
     }
   }
 
@@ -469,7 +530,7 @@ export default function Chat() {
             </div>
           ) : (
             <Space direction="vertical" style={{ width: '100%' }} size="large">
-              {messages.map((msg) => (
+              {messages.map((msg, index) => (
                 <div
                   key={msg.id}
                   style={{
@@ -531,20 +592,39 @@ export default function Chat() {
                       >
                         <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
                         {msg.role === 'ASSISTANT' && (
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<CopyOutlined />}
-                            onClick={() => handleCopyMessage(msg.content)}
-                            style={{
-                              fontSize: '12px',
-                              padding: '0 4px',
-                              height: 'auto',
-                              color: 'inherit'
-                            }}
-                          >
-                            复制
-                          </Button>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<CopyOutlined />}
+                              onClick={() => handleCopyMessage(msg.content)}
+                              style={{
+                                fontSize: '12px',
+                                padding: '0 4px',
+                                height: 'auto',
+                                color: 'inherit'
+                              }}
+                            >
+                              复制
+                            </Button>
+                            {index === messages.length - 1 && (
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<ReloadOutlined />}
+                                onClick={() => handleRegenerateResponse(index)}
+                                disabled={loading}
+                                style={{
+                                  fontSize: '12px',
+                                  padding: '0 4px',
+                                  height: 'auto',
+                                  color: 'inherit'
+                                }}
+                              >
+                                重试
+                              </Button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
