@@ -3,7 +3,6 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   DashboardOutlined,
   FileTextOutlined,
-  SearchOutlined,
   MessageOutlined,
   LogoutOutlined,
 } from '@ant-design/icons'
@@ -29,11 +28,6 @@ export default function Layout() {
       key: '/chat',
       icon: <MessageOutlined />,
       label: '智能对话',
-    },
-    {
-      key: '/knowledge',
-      icon: <SearchOutlined />,
-      label: '知识问答',
     },
   ]
 

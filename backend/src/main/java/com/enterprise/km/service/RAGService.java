@@ -49,13 +49,6 @@ public class RAGService {
             """;
 
     /**
-     * Query without conversation history (legacy method)
-     */
-    public String query(String question, int topK) {
-        return queryWithHistory(question, topK, null);
-    }
-
-    /**
      * Query with conversation history
      */
     public String queryWithHistory(String question, int topK, List<com.enterprise.km.model.Message> conversationHistory) {
@@ -118,26 +111,6 @@ public class RAGService {
 
         log.info("RAG response generated successfully");
         return response;
-    }
-
-    public List<Document> semanticSearch(String query, int topK) {
-        log.info("Performing semantic search: {}", query);
-
-        return vectorStore.similaritySearch(
-            SearchRequest.query(query)
-                .withTopK(topK)
-                .withSimilarityThreshold(0.6)
-        );
-    }
-
-    public List<Document> semanticSearchWithScore(String query, int topK, double threshold) {
-        log.info("Performing semantic search with score: {}", query);
-
-        return vectorStore.similaritySearch(
-            SearchRequest.query(query)
-                .withTopK(topK)
-                .withSimilarityThreshold(threshold)
-        );
     }
 
     /**
