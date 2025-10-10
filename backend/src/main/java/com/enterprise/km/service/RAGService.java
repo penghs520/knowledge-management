@@ -124,7 +124,7 @@ public class RAGService {
         List<Document> similarDocuments = vectorStore.similaritySearch(
             SearchRequest.query(question)
                 .withTopK(topK)
-                .withSimilarityThreshold(0.5)
+                .withSimilarityThreshold(0.7)
         );
 
         log.info("Found {} similar documents", similarDocuments.size());
